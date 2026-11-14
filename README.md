@@ -1,0 +1,77 @@
+# Adrobot — управление кампаниями Keitaro
+
+Тестовое задание на FastAPI, SQLAlchemy и React/Vite. Приложение создаёт кампанию с двумя потоками и позволяет добавлять и удалять офферы в существующем потоке. Доли офферов всегда составляют ровно 100%.
+
+## Возможности
+
+- Создание кампании по названию, одному или нескольким двубуквенным ГЕО кодам и ID оффера.
+- Выбор домена, группы и источника из Keitaro Admin API.
+- Первый поток (`regular`) принимает выбранное ГЕО и отправляет на Google. Второй (`default`) направляет остальной трафик на оффер.
+- Добавление/удаление офферов, автоматическое равное распределение долей, ручное редактирование долей с проверкой суммы 100%.
+- История действий в SQLite через SQLAlchemy.
+- Демо режим с тестовыми данными для проверки без доступа к Keitaro.
+
+## Требования
+
+- Python 3.11+
+- Node.js 20+
+
+## Запуск
+
+В PowerShell:
+
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+alembic upgrade head
+python -m app.seed
+uvicorn app.main:app --reload
+```
+
+В другом терминале:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Откройте http://localhost:5173. Swagger API: http://localhost:8000/docs.
+
+На Linux/macOS используйте `source .venv/bin/activate` и `cp .env.example .env`. Команды миграции и запуска те же.
+
+## Подключение Keitaro
+
+В `backend/.env` задайте:
+
+```dotenv
+KEITARO_MODE=live
+KEITARO_BASE_URL=https://your-tracker.example
+KEITARO_API_KEY=your-admin-api-key
+```
+
+Файл `.env` не добавляется в Git. Для загрузки переменных при запуске используйте, например, `uvicorn --env-file .env app.main:app --reload` (пакет `python-dotenv` установлен вместе с `uvicorn[standard]`). При обычном запуске из команд выше приложение работает в демо режиме; чтобы переключиться на live режим, задайте переменные окружения перед запуском или используйте `--env-file`.
+
+Ключ берётся в профиле Keitaro → API keys. Используется заголовок `Api-Key`. Бэкенд обращается к `/admin_api/v1` и скрывает ключ от браузера. Выбранные домен, группа, источник и оффер проверяются через API до создания кампании. При ошибке создания потока приложение пытается перенести неполную кампанию в архив и сообщает результат.
+
+`DATABASE_URL` по умолчанию указывает на `sqlite:///./adrobot.db`. После изменения схемы БД создавайте новую миграцию командой `alembic revision --autogenerate -m "..."`, затем выполняйте `alembic upgrade head`.
+
+## Проверки
+
+```powershell
+cd backend
+pytest -q
+cd ../frontend
+npm run build
+```
+
+Интеграционный тест с реальным трекером не выполняется без его URL и API ключа. Тесты проверяют API в демо режиме, состав двух потоков, доли и формы запросов к Keitaro через mock transport.
+
+## Примечания к API
+
+Официальная схема: [Keitaro Admin API](https://admin-api.docs.keitaro.io/). Используются `POST /campaigns`, `POST /streams`, `GET /campaigns/{id}/streams`, `PUT /streams/{id}`, а также справочники `/offers`, `/domains`, `/groups?type=campaigns`, `/traffic_sources`.
+
+Видео из ТЗ недоступно из среды разработки, поэтому поведение редактора реализовано по текстовым требованиям: добавление, удаление и корректное распределение долей офферов. Поток Google и другие потоки не меняются при редактировании офферов.
