@@ -28,7 +28,7 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 alembic upgrade head
 python -m app.seed
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --env-file .env --reload
 ```
 
 В другом терминале:
@@ -39,7 +39,9 @@ npm install
 npm run dev
 ```
 
-Откройте http://localhost:5173. Swagger API: http://localhost:8000/docs.
+Откройте http://localhost:5173. Swagger доступен по адресу http://127.0.0.1:8000/docs.
+
+Если вы уже находитесь в папке `backend/app`, команда `python main.py` запустит тот же сервер. Используйте одну команду запуска за раз. При `[WinError 10013]` проверьте, отвечает ли уже http://127.0.0.1:8000/api/health. Если отвечает ваш экземпляр Adrobot, используйте его или остановите через `Ctrl+C` в его терминале перед повторным запуском.
 
 На Linux/macOS используйте `source .venv/bin/activate` и `cp .env.example .env`. Команды миграции и запуска те же.
 
@@ -53,7 +55,7 @@ KEITARO_BASE_URL=https://your-tracker.example
 KEITARO_API_KEY=your-admin-api-key
 ```
 
-Файл `.env` не добавляется в Git. Для загрузки переменных при запуске используйте, например, `uvicorn --env-file .env app.main:app --reload` (пакет `python-dotenv` установлен вместе с `uvicorn[standard]`). При обычном запуске из команд выше приложение работает в демо режиме; чтобы переключиться на live режим, задайте переменные окружения перед запуском или используйте `--env-file`.
+Файл `.env` не добавляется в Git. Команда запуска выше загружает его через `--env-file`. В `.env.example` по умолчанию выбран демо режим.
 
 Ключ берётся в профиле Keitaro → API keys. Используется заголовок `Api-Key`. Бэкенд обращается к `/admin_api/v1` и скрывает ключ от браузера. Выбранные домен, группа, источник и оффер проверяются через API до создания кампании. При ошибке создания потока приложение пытается перенести неполную кампанию в архив и сообщает результат.
 

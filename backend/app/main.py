@@ -1,3 +1,23 @@
+if __name__ == "__main__":
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    # Start Uvicorn as a module so reload workers can import the app package on Windows.
+    backend_dir = Path(__file__).resolve().parents[1]
+    command = [
+        sys.executable, "-m", "uvicorn", "app.main:app",
+        "--host", "127.0.0.1", "--port", "8000", "--reload",
+    ]
+    env_file = backend_dir / ".env"
+    if env_file.is_file():
+        command.extend(["--env-file", str(env_file)])
+    try:
+        raise SystemExit(subprocess.call(command, cwd=backend_dir))
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None
+
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
