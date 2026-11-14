@@ -3,6 +3,8 @@ import { Activity, ArrowRight, Check, ChevronDown, CircleHelp, ExternalLink, Glo
 import { api } from './api'
 
 const emptyOptions = { domains: [], groups: [], sources: [], offers: [] }
+const catalogLabels = { domains: 'домены', groups: 'группы', sources: 'источники трафика', offers: 'офферы' }
+const isAvailable = item => item.state === undefined || item.state === 'active'
 
 function nameOf(items, id) {
   return items.find(item => item.id === id)?.name || `#${id}`
@@ -23,10 +25,10 @@ function SearchSelect({ label, items, value, onChange, placeholder = 'Выбер
   const filtered = items.filter(item => item.state !== 'deleted' && `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase()))
   return <div className="field select-field">
     <label>{label}</label>
-    <button className={`select-trigger ${open ? 'focus' : ''}`} type="button" disabled={disabled} onClick={() => { setOpen(!open); setQuery('') }}>
+    <button className={`select-trigger ${open ? 'focus' : ''}`} type="button" disabled={disabled || !items.length} onClick={() => { setOpen(!open); setQuery('') }}>
       <span className={selected ? '' : 'muted'}>{selected ? selected.name : placeholder}</span><ChevronDown size={17} />
     </button>
-    {open && <div className="select-menu">
+    {open && items.length > 0 && <div className="select-menu">
       <div className="select-search"><Search size={15} /><input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по названию или ID" /></div>
       <div className="select-options">{filtered.length ? filtered.map(item => <button type="button" key={item.id} className={item.id === Number(value) ? 'chosen' : ''} onClick={() => { onChange(item.id); setOpen(false) }}><span>{item.name}</span><small>#{item.id}</small></button>) : <p className="empty-search">Ничего не найдено</p>}</div>
     </div>}
@@ -37,12 +39,16 @@ function Stat({ icon: Icon, label, value, tone }) {
   return <div className="stat"><span className={`stat-icon ${tone}`}><Icon size={19} /></span><div><span className="stat-label">{label}</span><strong>{value}</strong></div></div>
 }
 
-function CreateView({ options, onCreated, notify }) {
+function CreateView({ options, mode, onCreated, notify }) {
   const [form, setForm] = useState({ name: '', geo: '', offer_id: '', domain_id: '', group_id: '', traffic_source_id: '' })
   const [saving, setSaving] = useState(false)
   const geo = [...new Set(form.geo.split(/[\s,;]+/).map(value => value.trim().toUpperCase()).filter(Boolean))]
   const validGeo = geo.length > 0 && geo.every(value => /^[A-Z]{2}$/.test(value))
-  const ready = form.name.trim() && validGeo && form.offer_id && form.domain_id && form.group_id && form.traffic_source_id
+  const catalogs = Object.fromEntries(Object.entries(options).map(([key, rows]) => [key, rows.filter(isAvailable)]))
+  const missing = Object.entries(catalogLabels).filter(([key]) => !catalogs[key].length).map(([, label]) => label)
+  const ready = form.name.trim() && validGeo && [
+    ['offers', 'offer_id'], ['domains', 'domain_id'], ['groups', 'group_id'], ['sources', 'traffic_source_id'],
+  ].every(([key, field]) => catalogs[key].some(item => item.id === form[field]))
   const update = (key, value) => setForm(previous => ({ ...previous, [key]: value }))
   async function submit(event) {
     event.preventDefault()
@@ -59,13 +65,14 @@ function CreateView({ options, onCreated, notify }) {
   return <div className="content-grid">
     <section className="panel form-panel">
       <div className="panel-heading"><div className="panel-icon violet"><WandSparkles size={20} /></div><div><h2>Новая кампания</h2><p>Заполните параметры для Keitaro</p></div></div>
+      {missing.length > 0 && <p className="toast error" role="status">Создание кампании недоступно. {mode === 'live' ? 'Keitaro не вернул доступные справочники' : 'Не загружены справочники'}: {missing.join(', ')}.</p>}
       <form onSubmit={submit}>
         <div className="field"><label htmlFor="campaign-name">Название кампании <span className="required">*</span></label><input id="campaign-name" value={form.name} onChange={event => update('name', event.target.value)} placeholder="Например, Summer launch / MX" maxLength={255} /></div>
         <div className="field"><label htmlFor="geo">ГЕО <span className="required">*</span></label><div className="input-with-icon"><Globe2 size={18} /><input id="geo" value={form.geo} onChange={event => update('geo', event.target.value)} placeholder="MX, AU, RO" /></div><small className={form.geo && !validGeo ? 'hint-error' : 'hint'}>Двухбуквенные коды стран через запятую</small></div>
-        <SearchSelect label="Оффер Keitaro *" items={options.offers} value={form.offer_id} onChange={value => update('offer_id', value)} placeholder="Найти оффер" />
+        <SearchSelect label="Оффер Keitaro *" items={catalogs.offers} value={form.offer_id} onChange={value => update('offer_id', value)} placeholder={catalogs.offers.length ? 'Найти оффер' : 'Нет доступных офферов'} />
         <div className="form-divider"><span>Настройки кампании</span></div>
-        <div className="form-row"><SearchSelect label="Домен *" items={options.domains} value={form.domain_id} onChange={value => update('domain_id', value)} /><SearchSelect label="Группа *" items={options.groups} value={form.group_id} onChange={value => update('group_id', value)} /></div>
-        <SearchSelect label="Источник трафика *" items={options.sources} value={form.traffic_source_id} onChange={value => update('traffic_source_id', value)} />
+        <div className="form-row"><SearchSelect label="Домен *" items={catalogs.domains} value={form.domain_id} onChange={value => update('domain_id', value)} placeholder={catalogs.domains.length ? 'Выберите...' : 'Нет доступных доменов'} /><SearchSelect label="Группа *" items={catalogs.groups} value={form.group_id} onChange={value => update('group_id', value)} placeholder={catalogs.groups.length ? 'Выберите...' : 'Нет доступных групп'} /></div>
+        <SearchSelect label="Источник трафика *" items={catalogs.sources} value={form.traffic_source_id} onChange={value => update('traffic_source_id', value)} placeholder={catalogs.sources.length ? 'Выберите...' : 'Нет доступных источников'} />
         <button className="primary-button create-button" type="submit" disabled={!ready || saving}>{saving ? 'Создаём...' : 'Создать кампанию'} <ArrowRight size={18} /></button>
       </form>
     </section>
@@ -86,7 +93,7 @@ function EditorView({ campaigns, options, selectedId, selectCampaign, detail, se
   const total = draft.reduce((sum, item) => sum + (Number(item.share) || 0), 0)
   const original = stream?.offers?.map(item => ({ offer_id: item.offer_id, share: item.share })) || []
   const dirty = JSON.stringify(draft) !== JSON.stringify(original)
-  const available = options.offers.filter(item => item.state !== 'deleted' && !draft.some(existing => existing.offer_id === item.id) && `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase()))
+  const available = options.offers.filter(item => isAvailable(item) && !draft.some(existing => existing.offer_id === item.id) && `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase()))
   async function mutate(path, method, body, success) {
     setBusy(true)
     try { const updated = await api(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) }); setDetail(updated); setDraft(updated.streams.find(item => item.id === stream.id).offers.map(item => ({ offer_id: item.offer_id, share: item.share }))); notify(success, 'success'); refresh() }
@@ -138,7 +145,7 @@ export default function App() {
     <main className="main"><header className="topbar"><div className="breadcrumbs">Workspace <span>/</span> <strong>{view === 'create' ? 'Создать кампанию' : 'Редактор кампаний'}</strong></div><button className="refresh-button" onClick={refresh} title="Обновить данные"><RefreshCw size={17} /> <span>Обновить</span></button></header><div className="main-content"><div className="page-intro"><div><div className="eyebrow page-eyebrow"><span /> CAMPAIGN MANAGEMENT</div><h1>{view === 'create' ? 'Создать кампанию' : 'Редактор кампаний'}</h1><p>{view === 'create' ? 'Создайте кампанию с ГЕО фильтром и оффером за пару шагов.' : 'Управляйте офферами и долями трафика в существующих кампаниях.'}</p></div><div className="intro-badge"><Globe2 size={17} /> Keitaro Admin API</div></div>
       <div className="stats-row"><Stat icon={LayoutGrid} label="Кампании" value={campaignCount} tone="purple" /><Stat icon={ListFilter} label="Офферы" value={offerCount} tone="cyan" /><Stat icon={ShieldCheck} label="Подключение" value={mode === 'demo' ? 'Демо' : 'Live'} tone="green" /></div>
       {notice && <div className={`toast ${notice.type}`} role="alert"><span>{notice.message}</span><button onClick={() => setNotice(null)} aria-label="Закрыть"><X size={16} /></button></div>}
-      {loading ? <div className="loading">Загружаем данные...</div> : view === 'create' ? <CreateView options={options} onCreated={onCreated} notify={notify} /> : <EditorView campaigns={campaigns} options={options} selectedId={selectedId} selectCampaign={setSelectedId} detail={detail} setDetail={setDetail} notify={notify} refresh={refresh} />}
+      {loading ? <div className="loading">Загружаем данные...</div> : view === 'create' ? <CreateView options={options} mode={mode} onCreated={onCreated} notify={notify} /> : <EditorView campaigns={campaigns} options={options} selectedId={selectedId} selectCampaign={setSelectedId} detail={detail} setDetail={setDetail} notify={notify} refresh={refresh} />}
       <section className="activity-section"><div className="activity-title"><div><h2>Последние действия</h2><p>История операций в рабочем пространстве</p></div></div><div className="activity-list">{recent.length ? recent.map(item => <div className="activity-item" key={item.id}><span className="activity-symbol"><Activity size={16} /></span><span>{item.summary}</span><small>{new Date(item.created_at + 'Z').toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div>) : <div className="activity-empty">Здесь появятся созданные кампании и изменения офферов.</div>}</div></section>
     </div></main>
   </div>

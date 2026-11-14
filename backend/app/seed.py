@@ -19,7 +19,7 @@ def seed() -> None:
         db.add(campaign)
         db.flush()
         db.add_all([
-            DemoStream(campaign_id=campaign.id, name="MX → Google", type="regular", schema="redirect", action_type="http", action_payload="https://www.google.com/", position=1, filters=[{"name": "geo", "mode": "accept", "payload": ["MX"]}], offers=[]),
+            DemoStream(campaign_id=campaign.id, name="MX → Google", type="regular", schema="redirect", action_type="http", action_payload="https://www.google.com/", position=1, filters=[{"name": "country", "mode": "accept", "payload": ["MX"]}], offers=[]),
             DemoStream(campaign_id=campaign.id, name="Офферы", type="default", schema="landings", action_type="http", action_payload=None, position=2, filters=[], offers=[{"offer_id": 102, "share": 50, "state": "active"}, {"offer_id": 103, "share": 50, "state": "active"}]),
         ])
         db.commit()

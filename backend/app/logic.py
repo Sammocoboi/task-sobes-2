@@ -25,7 +25,8 @@ def stream_payloads(campaign_id: int, geo: list[str], offer_id: int, google_url:
         "schema": "redirect",
         "action_type": "http",
         "action_payload": google_url,
-        "filters": [{"name": "geo", "mode": "accept", "payload": geo}],
+        "collect_clicks": True,
+        "filters": [{"name": "country", "mode": "accept", "payload": geo}],
     }
     offer = {
         "campaign_id": campaign_id,
@@ -34,6 +35,7 @@ def stream_payloads(campaign_id: int, geo: list[str], offer_id: int, google_url:
         "position": 2,
         "schema": "landings",
         "action_type": "http",
+        "collect_clicks": True,
         "offers": [{"offer_id": offer_id, "share": 100, "state": "active"}],
     }
     return google, offer

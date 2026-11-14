@@ -1,6 +1,7 @@
 import httpx
+import pytest
 
-from app.services import KeitaroService
+from app.services import KeitaroService, ServiceError
 from app.schemas import CampaignCreate
 from app.logic import geo_from_filter_payload
 
@@ -43,9 +44,25 @@ def test_keitaro_payloads_and_partial_offer_update():
     service.client = httpx.Client(base_url="https://tracker.example/admin_api/v1/", transport=httpx.MockTransport(respond))
     created = service.create(CampaignCreate(name="test", geo=["MX"], offer_id=10, domain_id=1, group_id=2, traffic_source_id=3))
     assert created["id"] == 7
-    assert streams[0]["filters"] == [{"name": "geo", "mode": "accept", "payload": ["MX"]}]
+    assert created["geo"] == ["MX"]
+    assert streams[0]["filters"] == [{"name": "country", "mode": "accept", "payload": ["MX"]}]
     assert streams[0]["action_payload"] == "https://www.google.com/"
+    assert all(stream["collect_clicks"] for stream in streams)
     assert streams[1]["offers"] == [{"offer_id": 10, "share": 100, "state": "active"}]
     service.update_offers(7, 2, [{"offer_id": 10, "share": 100}])
     assert sent[-1][2] == {"offers": [{"offer_id": 10, "share": 100, "state": "active"}]}
     service.client.close()
+
+
+def test_missing_catalogs_prevent_remote_creation():
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET", "Keitaro must not receive mutations without the required catalogs"
+        kind = request.url.path.rsplit("/", 1)[-1]
+        return httpx.Response(200, json={"domains": [], "traffic_sources": [], "groups": [{"id": 2}], "offers": [{"id": 10}]}[kind])
+
+    service = object.__new__(KeitaroService)
+    with httpx.Client(base_url="https://tracker.example/admin_api/v1/", transport=httpx.MockTransport(respond)) as client:
+        service.client = client
+        with pytest.raises(ServiceError, match="домены, источники трафика") as error:
+            service.create(CampaignCreate(name="test", geo=["MX"], offer_id=10, domain_id=1, group_id=2, traffic_source_id=3))
+    assert error.value.status_code == 409

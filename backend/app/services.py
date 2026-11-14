@@ -54,11 +54,21 @@ class KeitaroService:
         campaign = self._request("GET", f"campaigns/{campaign_id}")
         streams = self._request("GET", f"campaigns/{campaign_id}/streams")
         campaign["streams"] = streams
-        campaign["geo"] = next((geo_from_filter_payload(f.get("payload")) for s in streams for f in s.get("filters", []) if f.get("name") == "geo" and f.get("mode") == "accept"), [])
+        campaign["geo"] = next((
+            geo_from_filter_payload(item.get("payload"))
+            for stream in streams
+            for item in (stream.get("filters") or [])
+            if item.get("name") in {"country", "geo"} and item.get("mode") == "accept"
+        ), [])
         return campaign
 
     def create(self, data: CampaignCreate) -> dict:
         options = self.options()
+        missing = [label for kind, label in (
+            ("domains", "домены"), ("groups", "группы"), ("sources", "источники трафика"), ("offers", "офферы"),
+        ) if not any(row.get("state", "active") == "active" for row in options[kind])]
+        if missing:
+            raise ServiceError(f"Создание кампании недоступно: Keitaro не вернул доступные справочники ({', '.join(missing)}).", 409)
         for kind, entity_id in (("domains", data.domain_id), ("groups", data.group_id), ("sources", data.traffic_source_id), ("offers", data.offer_id)):
             if not any(row.get("id") == entity_id and row.get("state", "active") == "active" for row in options[kind]):
                 raise ServiceError(f"Выбранный {kind} #{entity_id} не найден или неактивен")

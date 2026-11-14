@@ -28,7 +28,7 @@ def test_create_and_edit_campaign():
         campaign = created.json()
         assert campaign["geo"] == ["MX", "AU"]
         assert len(campaign["streams"]) == 2
-        assert campaign["streams"][0]["filters"] == [{"name": "geo", "mode": "accept", "payload": ["MX", "AU"]}]
+        assert campaign["streams"][0]["filters"] == [{"name": "country", "mode": "accept", "payload": ["MX", "AU"]}]
         assert campaign["streams"][0]["action_payload"] == "https://www.google.com/"
         stream = campaign["streams"][1]
         assert stream["offers"][0]["share"] == 100
